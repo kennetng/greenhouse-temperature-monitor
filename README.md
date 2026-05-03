@@ -220,6 +220,66 @@ sudo systemctl start greenhouse-display
 
 ---
 
+## Step 11 — Bluetooth (BLE) to your phone
+
+`ble_server.py` broadcasts the latest temperature and humidity over Bluetooth. No Wi-Fi needed — your phone reads it directly.
+
+You will need the free **nRF Connect** app on your phone:
+- [Android](https://play.google.com/store/apps/details?id=no.nordicsemi.android.mcp)
+- [iOS](https://apps.apple.com/app/nrf-connect-for-mobile/id1054362403)
+
+### Install the dependency
+
+```bash
+sudo apt install -y bluetooth bluez
+source .venv/bin/activate
+pip install bluezero
+```
+
+### Test it
+
+```bash
+source .venv/bin/activate
+python3 ble_server.py
+```
+
+Open nRF Connect on your phone, tap **Scan**, and connect to **Greenhouse**. Under the **Environmental Sensing** service you will see:
+- **Temperature** — in °C
+- **Humidity** — in %
+
+Tap the read icon (down arrow) next to each to get the latest value.
+
+### Run on boot
+
+```bash
+sudo nano /etc/systemd/system/greenhouse-ble.service
+```
+
+Paste this:
+
+```ini
+[Unit]
+Description=Greenhouse BLE server
+After=bluetooth.target
+
+[Service]
+ExecStart=/home/pi/greenhouse-temperature-monitor/.venv/bin/python3 /home/pi/greenhouse-temperature-monitor/ble_server.py
+Restart=always
+User=pi
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start it:
+
+```bash
+sudo systemctl enable greenhouse-ble
+sudo systemctl start greenhouse-ble
+```
+
+---
+
 ## Viewing logged data
 
 `temperature_log.csv` looks like this:
@@ -244,5 +304,6 @@ tail -20 ~/greenhouse-temperature-monitor/temperature_log.csv
 |------|---------|
 | `pi_logger.py` | Reads the AHT20 and appends one row to the CSV |
 | `display.py` | Drives the SH5461AS display, showing the latest temperature |
+| `ble_server.py` | BLE GATT server — broadcasts temperature and humidity to your phone |
 | `monitor.py` | Original serial monitor for QT Py ESP32S2 — run on a laptop |
 | `device/code.py` | CircuitPython firmware for the QT Py ESP32S2 |
