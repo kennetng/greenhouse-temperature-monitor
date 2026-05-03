@@ -1,6 +1,6 @@
 # Greenhouse Temperature Monitor
 
-Logs temperature and humidity from an AHT20 sensor to a CSV file on a Raspberry Pi Zero 2, every 5 minutes.
+Logs temperature and humidity from an AHT20 sensor to a CSV file on a Raspberry Pi Zero 2, every 5 minutes. Optionally displays the current temperature on a SH5461AS 4-digit 7-segment display.
 
 ---
 
@@ -8,7 +8,9 @@ Logs temperature and humidity from an AHT20 sensor to a CSV file on a Raspberry 
 
 - Raspberry Pi Zero 2 W
 - AHT20 temperature/humidity sensor (I2C)
-- 4× female-to-female jumper wires
+- SH5461AS 4-digit 7-segment display (optional)
+- 8× 470Ω resistors (for display)
+- Female-to-female jumper wires
 - MicroSD card (8 GB+)
 
 ### Wiring
@@ -21,6 +23,25 @@ Connect the AHT20 to the Pi's 40-pin header:
 | GND       | Pin 6  | GND  |
 | SDA       | Pin 3  | GPIO 2 |
 | SCL       | Pin 5  | GPIO 3 |
+
+#### SH5461AS Display (optional)
+
+Connect segment pins through a **470Ω resistor** each. Digit pins connect directly.
+
+| Display pin | Function      | Resistor | Pi GPIO (BCM) | Pi physical pin |
+|-------------|---------------|----------|---------------|-----------------|
+| 11          | A             | 470Ω     | 17            | 11              |
+| 7           | B             | 470Ω     | 18            | 12              |
+| 4           | C             | 470Ω     | 27            | 13              |
+| 2           | D             | 470Ω     | 22            | 15              |
+| 1           | E             | 470Ω     | 23            | 16              |
+| 10          | F             | 470Ω     | 24            | 18              |
+| 5           | G             | 470Ω     | 25            | 22              |
+| 3           | DP            | 470Ω     | 12            | 32              |
+| 12          | D1 (leftmost) | direct   | 5             | 29              |
+| 9           | D2            | direct   | 6             | 31              |
+| 8           | D3            | direct   | 13            | 33              |
+| 6           | D4 (rightmost)| direct   | 19            | 35              |
 
 ---
 
@@ -89,7 +110,7 @@ cd ~/greenhouse-temperature-monitor
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install adafruit-circuitpython-ahtx0
+pip install adafruit-circuitpython-ahtx0 RPi.GPIO
 ```
 
 ### 6. Test the logger
@@ -133,6 +154,58 @@ tail -f ~/greenhouse-temperature-monitor/cron.log
 
 ---
 
+## Display Setup (SH5461AS)
+
+`display.py` reads the latest temperature from the CSV and continuously multiplexes the 4-digit display. It shows readings like `23.4C`.
+
+### Test the display
+
+```bash
+source .venv/bin/activate
+python3 display.py
+```
+
+Press `Ctrl+C` to stop.
+
+### Run the display automatically on boot
+
+Create a systemd service:
+
+```bash
+sudo nano /etc/systemd/system/greenhouse-display.service
+```
+
+Paste the following:
+
+```ini
+[Unit]
+Description=Greenhouse temperature display
+After=multi-user.target
+
+[Service]
+ExecStart=/home/pi/greenhouse-temperature-monitor/.venv/bin/python3 /home/pi/greenhouse-temperature-monitor/display.py
+Restart=always
+User=pi
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start:
+
+```bash
+sudo systemctl enable greenhouse-display
+sudo systemctl start greenhouse-display
+```
+
+Check status:
+
+```bash
+sudo systemctl status greenhouse-display
+```
+
+---
+
 ## Log Format
 
 `temperature_log.csv` is a plain CSV file:
@@ -156,5 +229,6 @@ tail -20 ~/greenhouse-temperature-monitor/temperature_log.csv
 | File | Purpose |
 |------|---------|
 | `pi_logger.py` | Reads AHT20 and appends one row to the CSV — run this on the Pi |
+| `display.py` | Drives the SH5461AS display, showing the latest temperature from the CSV |
 | `monitor.py` | Original serial monitor for QT Py ESP32S2 — run this on a laptop |
 | `device/code.py` | CircuitPython firmware for the QT Py ESP32S2 |
